@@ -1,5 +1,6 @@
-#!/usr/bin/python
-from __future__ import division
+#!/usr/bin/env python
+
+
 from matplotlib import markers
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -10,13 +11,14 @@ import csv
 import sys
 import os
 
-def mq(folder, protein_list, filter_con = True):
+
+def mq(folder, protein_list, filter_con=True):
     """ Reads from evidence and peptide MQ results files and returns a
     dictionaryof the form:
     total_data[sample][protein] = [intensity, pre, start, seq,
                                    end, post, sample, mods]
     """
-    print "Reading file from MQ"
+    print("Reading file from MQ")
 
     # Evidence and peptide folders
     evi_file = os.path.join(folder, "evidence.txt")
@@ -44,23 +46,23 @@ def mq(folder, protein_list, filter_con = True):
         for row in e_reader:
             if e_exp != "Default":
                 experiment = row[e_exp]
-            else: experiment = e_exp
+            else:
+                experiment = e_exp
 
             protein = row[e_protein]
             # Filter out contaminants if active
             if (filter_con and "CON_" not in protein) or (not filter_con):
                 if row[e_protein] in protein_list or len(protein_list) == 0:
-
                     # Experiment, seq, mods, intensity, ID, protein
                     e_data.append([experiment, row[e_seq], row[e_mod_seq], row[e_i],
-                               row[e_pep_id], row[e_protein]])
+                                   row[e_pep_id], row[e_protein]])
 
     # Read positional info from peptide file
     with open(pep_file) as csvfile2:
         p_reader = csv.reader(csvfile2, delimiter='\t')
         p_headers = next(p_reader)
         p_pre = p_headers.index("Amino acid before")
-        p_post  = p_headers.index("Amino acid after")
+        p_post = p_headers.index("Amino acid after")
         p_start = p_headers.index("Start position")
         p_end = p_headers.index("End position")
         p_ID = p_headers.index("id")
@@ -82,17 +84,17 @@ def mq(folder, protein_list, filter_con = True):
                 pre, post, start, end = p_data[ID]
                 if pre != "" and start != "":
                     mods_list = []
-                    possible_mods = ["de"] #TODO: Add more mods
+                    possible_mods = ["de"]  # TODO: Add more mods
                     # If mods found, add to total_data in a readable format
                     for m in possible_mods:
                         if m in mods:
-                            actual_pos = 1 # For counting position in sequence
-                            for i in xrange(1, len(mods)):
+                            actual_pos = 1  # For counting position in sequence
+                            for i in range(1, len(mods)):
                                 if mods[i] == "(":
-                                    if mods[i+1] == m[0] and mods[i+2] == m[1]:
-                                        mod_label = "%s-%i-%s" % (mods[i-1],
-                                                     (int(start)+actual_pos-2),
-                                                     m)
+                                    if mods[i + 1] == m[0] and mods[i + 2] == m[1]:
+                                        mod_label = "%s-%i-%s" % (mods[i - 1],
+                                                                  (int(start) + actual_pos - 2),
+                                                                  m)
                                         mods_list.append(mod_label)
                                 # Do not advance unless actual sequence
                                 if mods[i].isupper(): actual_pos += 1
@@ -102,16 +104,19 @@ def mq(folder, protein_list, filter_con = True):
                         total_data[sample][protein] = [info]
                     else:
                         total_data[sample][protein].append(info)
-    print "Data loaded"
+    print("Data loaded")
     return total_data
 
 
-def get_robinson(aa):
+def get_robinson(aa, deamidate_path):
     """ Takes an amino acid, N or Q, and calls read_rate
     Returns a Pandas dataframe
     """
-    if aa == "Q": return read_rate("Info/gln.csv")
-    if aa == "N": return read_rate("Info/asn.csv")
+
+    if aa == "Q":
+        return read_rate(os.path.join(deamidate_path, "Info/gln.csv"))
+    if aa == "N":
+        return read_rate(os.path.join(deamidate_path, "Info/asn.csv"))
 
 
 def read_rate(filename):
@@ -122,18 +127,18 @@ def read_rate(filename):
     row_names, col_names = [], []
     with open(filename) as csvfile:
         reader = csv.reader(csvfile)
-        row = reader.next()
-        col_names = row[1:] # X amino acid names
+        row = next(reader)
+        col_names = row[1:]  # X amino acid names
         for line in reader:
-            line = filter(None, line)
-            row_names.append(line[0]) # Y amino acid names
-            data.append(line[1:]) # Half times
+            line = [_f for _f in line if _f]
+            row_names.append(line[0])  # Y amino acid names
+            data.append(line[1:])  # Half times
     data = np.array(data)
     df = pd.DataFrame(data, index=row_names, columns=col_names)
     return df
 
 
-def get_mid(total_data):
+def get_mid(total_data, deamidate_path):
     """ Forms two MIDs from total data
     mid[sample][protein][label] = [hl, [mod_i, total_i], [mod_i, total_i]...]
     Has a dataset of mod intensity vs total intensity and half time for each
@@ -141,8 +146,8 @@ def get_mid(total_data):
     * mid_classic: position, amino acid combo
     """
     robs = {}
-    robs["N"] = get_robinson("N")
-    robs["Q"] = get_robinson("Q")
+    robs["N"] = get_robinson("N", deamidate_path)
+    robs["Q"] = get_robinson("Q", deamidate_path)
     mid_classic, mid_ss = {}, {}
     for sample in total_data:
         if sample not in mid_classic: mid_classic[sample] = {}
@@ -150,14 +155,14 @@ def get_mid(total_data):
         for protein in total_data[sample]:
             if protein not in mid_classic[sample]: mid_classic[sample][protein] = {}
             if protein not in mid_ss[sample]: mid_ss[sample][protein] = {}
-            for aa in ["N", "Q"]: # For each deamiting amino acid
+            for aa in ["N", "Q"]:  # For each deamiting amino acid
                 rob = robs[aa]
                 for row in total_data[sample][protein]:
                     intensity, pre, start, seq, end, post, sample, mods = row
                     cur_pos = start
-                    for aa_i in range(len(seq)): # Iterating through sequence
+                    for aa_i in range(len(seq)):  # Iterating through sequence
                         aa_in_seq = seq[aa_i]
-                        if aa == aa_in_seq: # If we stumble upon the current deaminating amino acid in the sequence
+                        if aa == aa_in_seq:  # If we stumble upon the current deaminating amino acid in the sequence
                             mod_i, total_i = 0, 0
                             # Default half time
                             hf = -1
@@ -170,22 +175,23 @@ def get_mid(total_data):
                                 # Increase mod intensity
                                 mod_i += intensity
 
-                            if 0 < aa_i < len(seq)-1: # As long as the AA has two neighbours
-                                x = seq[aa_i+1] # Look right
-                                y = seq[aa_i-1] # Look left
-                                combo = "%s %s %s" % (y, aa, x) # SS label
+                            if 0 < aa_i < len(seq) - 1:  # As long as the AA has two neighbours
+                                x = seq[aa_i + 1]  # Look right
+                                y = seq[aa_i - 1]  # Look left
+                                combo = "%s %s %s" % (y, aa, x)  # SS label
 
                                 # Get half time from Pandas dataframe
                                 if (y in rob.index) and (x in rob.columns):
-                                    hf = rob.ix[y, x]
+                                    hf = rob.loc[y, x]
 
                                 # Add to SS MID
                                 if combo in mid_ss[sample][protein]:
                                     mid_ss[sample][protein][combo].append([mod_i, total_i])
-                                else: mid_ss[sample][protein][combo] = [hf, [mod_i, total_i]]
+                                else:
+                                    mid_ss[sample][protein][combo] = [hf, [mod_i, total_i]]
 
                             # Add to classic MID
-                            label = "%s %s" % (cur_pos, aa) # Classic label
+                            label = "%s %s" % (cur_pos, aa)  # Classic label
                             if label in mid_classic[sample][protein]:
                                 [old_mod_i, old_total_i] = mid_classic[sample][protein][label]
                                 mod_i += old_mod_i
@@ -196,7 +202,7 @@ def get_mid(total_data):
     return mid_classic, mid_ss
 
 
-def calc_deam(mid, to_print = True):
+def calc_deam(mid, to_print=True):
     """ Calculates bulk deamidation per sample, per protein
     Returns a list of [sample, protein, rel_asn, rel_gln]
     Where rel_asn and _gln are mod_intensity/total_intensity
@@ -207,34 +213,34 @@ def calc_deam(mid, to_print = True):
         for protein in mid[sample]:
             asn_m, asn_t, gln_m, gln_t = 0, 0, 0, 0
             rel_asn, rel_gln = -1, -1
-            for label, val in mid[sample][protein].items():
+            for label, val in list(mid[sample][protein].items()):
                 mod, total = val
                 cur_pos, aa = label.split(" ")
-                print_results.append([sample, protein, aa, 1-(mod/total)])
-                if "N" == aa: # Asn
+                print_results.append([sample, protein, aa, 1 - (mod / total)])
+                if "N" == aa:  # Asn
                     asn_m += mod
                     asn_t += total
-                if "Q" == aa: # Gln
+                if "Q" == aa:  # Gln
                     gln_m += mod
                     gln_t += total
             # Calculate relative amounts
             if asn_t > 0:
-                rel_asn = 1 - (asn_m/asn_t)
+                rel_asn = 1 - (asn_m / asn_t)
             if gln_t > 0:
-                rel_gln = 1 - (gln_m/gln_t)
+                rel_gln = 1 - (gln_m / gln_t)
             # Each sample relative amounts
             relative.append([sample, protein, rel_asn, rel_gln])
     if to_print: save_fine_bulk(print_results)
-    print "Bulk deamidation calculated"
+    print("Bulk deamidation calculated")
     return relative
 
 
-def bulk_deam(mid, show = False, to_print = True):
+def bulk_deam(mid, show=False, to_print=True):
     """ Plots bulk deamidation
     """
     relative = np.array(calc_deam(mid))
-    index = np.arange(len(relative[:,0]))
-    relative = np.array(sorted(relative, key=lambda row:row[0])) # Sort by sample
+    index = np.arange(len(relative[:, 0]))
+    relative = np.array(sorted(relative, key=lambda row: row[0]))  # Sort by sample
 
     width = .35
     fig, ax = plt.subplots()
@@ -247,27 +253,29 @@ def bulk_deam(mid, show = False, to_print = True):
         if a == "-1":
             noasn.append([i, 1])
             show_noasn_bars = True
-        else: asn.append([i, a])
+        else:
+            asn.append([i, a])
         if g == "-1":
-            nogln.append([i+width, 1])
+            nogln.append([i + width, 1])
             show_nogln_bars = True
-        else: gln.append([i+width, g])
+        else:
+            gln.append([i + width, g])
 
-    asn = np.array(asn, dtype = float)
-    gln = np.array(gln, dtype = float)
-    noasn = np.array(noasn, dtype = float)
-    nogln = np.array(nogln, dtype = float)
+    asn = np.array(asn, dtype=float)
+    gln = np.array(gln, dtype=float)
+    noasn = np.array(noasn, dtype=float)
+    nogln = np.array(nogln, dtype=float)
 
-    asn_bars = ax.bar(asn[:,0], asn[:,1], width, color='blue')
-    gln_bars = ax.bar(gln[:,0], gln[:,1], width, color='red')
-    if show_noasn_bars: noasn_bars = ax.bar(noasn[:,0], noasn[:,1], width, color='#70859B')
-    if show_nogln_bars: nogln_bars = ax.bar(nogln[:,0], nogln[:,1], width, color='#9B6C6B')
+    asn_bars = ax.bar(asn[:, 0], asn[:, 1], width, color='blue')
+    gln_bars = ax.bar(gln[:, 0], gln[:, 1], width, color='red')
+    if show_noasn_bars: noasn_bars = ax.bar(noasn[:, 0], noasn[:, 1], width, color='#70859B')
+    if show_nogln_bars: nogln_bars = ax.bar(nogln[:, 0], nogln[:, 1], width, color='#9B6C6B')
 
     # Make the bar names protein and sample
-    if len(set(relative[:,0])) == 1: # Only one sample
-        names = relative[:,1] # Protein is names
+    if len(set(relative[:, 0])) == 1:  # Only one sample
+        names = relative[:, 1]  # Protein is names
     else:
-        names = ["%s %s" % (x, y) for x, y in zip(relative[:,0], relative[:,1])]
+        names = ["%s %s" % (x, y) for x, y in zip(relative[:, 0], relative[:, 1])]
     # Lables
     ax.set_ylabel('% (Asn, Gln)')
     ax.set_xticks(index + width / 2)
@@ -276,7 +284,8 @@ def bulk_deam(mid, show = False, to_print = True):
 
     # Legend
     if show_nogln_bars and show_noasn_bars:
-        ax.legend((asn_bars[0], gln_bars[0], noasn_bars[0], nogln_bars[0]), ('% Asn', '% Gln', 'No Asn', 'No Gln'), loc="best")
+        ax.legend((asn_bars[0], gln_bars[0], noasn_bars[0], nogln_bars[0]), ('% Asn', '% Gln', 'No Asn', 'No Gln'),
+                  loc="best")
 
     if show_noasn_bars and not show_nogln_bars:
         ax.legend((asn_bars[0], gln_bars[0], noasn_bars[0]), ('% Asn', '% Gln', 'No Asn'), loc="best")
@@ -304,13 +313,13 @@ def save_plots(method):
     """ Save plots to a Results dir, which is created or located inside the
     data directory given as args
     """
-    results_dir = "%s/Results" % data_folder
+    results_dir = results_dir = os.path.join(data_folder, "Results")
     if not os.path.exists(results_dir):
-		os.makedirs(results_dir)
+        os.makedirs(results_dir)
     title = "%s_plot.png" % method
     path = "%s/%s" % (results_dir, title)
     plt.savefig(path)
-    print "%s saved in %s" % (title, results_dir)
+    print("%s saved in %s" % (title, results_dir))
 
 
 def ss_wrangle(mid):
@@ -319,12 +328,12 @@ def ss_wrangle(mid):
     data = []
     for sample in mid:
         for protein in mid[sample]:
-            for label, val in mid[sample][protein].items():
+            for label, val in list(mid[sample][protein].items()):
                 hf = val[0]
                 after = val[1:]
                 mod = [item[0] for item in after]
                 total = [item[1] for item in after]
-                info = [sample, protein, label, hf, (np.mean(mod)/np.mean(total)), np.mean(total)]
+                info = [sample, protein, label, hf, np.mean(mod) / np.mean(total), np.mean(total)]
                 data.append(info)
     data = np.array(data)
     return data
@@ -351,34 +360,33 @@ def get_relative_size(ti, mid, sample, protein, single_sample):
     o_max = np.amax(totals)
     o_min = np.amin(totals)
     n_max = 1000
-    n_min = n_max/10
+    n_min = n_max / 10
     o_range = (o_max - o_min)
     n_range = (n_max - n_min)
-    new_size = (((ti - o_min)*n_range)/o_range)+n_min
+    new_size = (((ti - o_min) * n_range) / o_range) + n_min
     return new_size
 
 
-def site_spef(mid, show = False, to_print = True):
+def site_spef(mid, show=False, to_print=True):
     """ Plots site-specific deamidation plot
     """
     # Initiate plotting
-    fig = plt.figure()
-    ax = plt.subplot(111)
-
+    fig = plt.figure(figsize=(15, 7))
+    # ax = plt.subplot(111)
+    ax = fig.add_axes([0.07, 0.1, 0.95, 0.8])
     # Get data and sort by sample
-    data = np.array(sorted(ss_wrangle(mid), key=lambda row:row[0]))
+    data = np.array(sorted(ss_wrangle(mid), key=lambda row: row[0]))
 
     # Check if there's oly one sample
     # If so we want to colour stuff by protein instead
     single_sample = False
     col_index = 0
-    if len(mid.keys()) == 1:
+    if len(list(mid.keys())) == 1:
         single_sample = True
         col_index = 1
 
-
     # How many different samples/proteins
-    num_cols = len(set(data[:,col_index])) + 1
+    num_cols = len(set(data[:, col_index])) + 1
 
     # Get colour map based on how many needed
     cmap_col = "nipy_spectral"
@@ -401,9 +409,9 @@ def site_spef(mid, show = False, to_print = True):
     used_labels = []
     used_markers = []
     marker_dict = {}
-    valid_markers = ([item[0] for item in markers.MarkerStyle.markers.items() if
-    item[1] is not 'nothing' and not item[1].startswith('tick')
-    and not item[1].startswith('caret')])
+    valid_markers = ([item[0] for item in list(markers.MarkerStyle.markers.items()) if
+                      item[1] != 'nothing' and not item[1].startswith('tick') and
+                      not item[1].startswith('caret')])
     # Hack to take out stupid markers
     del valid_markers[3]
     del valid_markers[6]
@@ -437,9 +445,9 @@ def site_spef(mid, show = False, to_print = True):
         if not simplify:
             l = "%s %s" % (sample, protein)
         if simplify:
-            l = sample # Keep it simple if many samples
+            l = sample  # Keep it simple if many samples
         if single_sample:
-            l = protein # Only need protein if only one sample
+            l = protein  # Only need protein if only one sample
         if l in used_labels:
             l = None
         else:
@@ -464,18 +472,16 @@ def site_spef(mid, show = False, to_print = True):
                 valid_markers = list(set(used_markers))
                 used_markers = []
 
-
         # We want intact intensity, not deamidated intensity
         rmi = 1 - float(rmi)
 
-        plt.scatter(hf, rmi, color=col, marker=m, alpha=.8, s=size, label=l)
+        plt.scatter(float(hf), rmi, color=col, marker=m, alpha=.8, s=size, label=l)
 
         if to_print:
             data_to_print.append([hf, rmi, size, sample, protein])
 
         prev_sample = sample
         prev_protein = protein
-
 
     # Send to printing?
     if to_print:
@@ -488,17 +494,17 @@ def site_spef(mid, show = False, to_print = True):
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
 
-    if simplify: # Use patches if too much data
-        lgd = plt.legend(handles=patches, prop={'size':7},loc='center left', bbox_to_anchor=(1, 0.5))
+    if simplify:  # Use patches if too much data
+        lgd = plt.legend(handles=patches, prop={'size': 7}, loc='center left', bbox_to_anchor=(1, 0.5))
     else:
-        lgd = plt.legend(prop={'size':7},loc='center left', bbox_to_anchor=(1, 0.5))
+        lgd = plt.legend(prop={'size': 7}, loc='center left', bbox_to_anchor=(1, 0.5))
     # Make small and neat
-    for i in xrange(0, len(lgd.legendHandles)):
+    for i in range(0, len(lgd.legendHandles)):
         lgd.legendHandles[i]._sizes = [30]
 
     plot_title = "Site-Specific Deamidation"
     plt.title(plot_title)
-    #plt.tight_layout()
+    plt.tight_layout()
     save_plots("Site-Specific")
     if show: plt.show()
 
@@ -516,7 +522,7 @@ def save_fine_bulk(data):
         writer.writerow(["Sample", "Protein", "AA", "RelNonDeam"])
         writer.writerows(data)
     csvfile.close()
-    print "%s saved in %s" % (title, results_dir)
+    print("%s saved in %s" % (title, results_dir))
 
 
 def save_csv_results(data, method):
@@ -535,7 +541,7 @@ def save_csv_results(data, method):
             writer.writerow(["Sample", "Protein", "NNonDeam", "QNonDeam"])
         writer.writerows(data)
     csvfile.close()
-    print "%s saved in %s" % (title, results_dir)
+    print("%s saved in %s" % (title, results_dir))
 
 
 def read_protein_list(protein_list_file):
@@ -546,22 +552,24 @@ def read_protein_list(protein_list_file):
     return protein_list
 
 
-
 data_folder = ""
+
+
 def main():
     global data_folder
     try:
         data_folder = sys.argv[1]
     except IndexError as e:
-        print "Specify path to data"
+        print("Specify path to data")
     protein_list = []
+    deamidate_path = os.path.dirname(os.path.realpath(sys.argv[0]))
     if len(sys.argv) > 2:
         protein_list_file = sys.argv[2]
         protein_list = read_protein_list(protein_list_file)
-    total_data = mq(data_folder, protein_list, filter_con = True)
-    mid_classic, mid_ss = get_mid(total_data)
-    bulk_deam(mid_classic, show = False, to_print = True)
-    site_spef(mid_ss, show = False, to_print = True)
+    total_data = mq(data_folder, protein_list, filter_con=True)
+    mid_classic, mid_ss = get_mid(total_data, deamidate_path)
+    bulk_deam(mid_classic, show=False, to_print=True)
+    site_spef(mid_ss, show=False, to_print=True)
 
 
 main()

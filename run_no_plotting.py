@@ -1,5 +1,5 @@
 #!/usr/bin/python
-from __future__ import division
+
 import numpy as np
 import pandas as pd
 import random
@@ -13,7 +13,7 @@ def mq(folder, protein_list, filter_con = True):
     total_data[sample][protein] = [intensity, pre, start, seq,
                                    end, post, sample, mods]
     """
-    print "Reading file from MQ"
+    print("Reading file from MQ")
 
     # Evidence and peptide folders
     evi_file = os.path.join(folder, "evidence.txt")
@@ -86,7 +86,7 @@ def mq(folder, protein_list, filter_con = True):
                     for m in possible_mods:
                         if m in mods:
                             actual_pos = 1 # For counting position in sequence
-                            for i in xrange(1, len(mods)):
+                            for i in range(1, len(mods)):
                                 if mods[i] == "(":
                                     if mods[i+1] == m[0] and mods[i+2] == m[1]:
                                         mod_label = "%s-%i-%s" % (mods[i-1],
@@ -101,7 +101,7 @@ def mq(folder, protein_list, filter_con = True):
                         total_data[sample][protein] = [info]
                     else:
                         total_data[sample][protein].append(info)
-    print "Data loaded"
+    print("Data loaded")
     return total_data
 
 
@@ -121,10 +121,10 @@ def read_rate(filename):
     row_names, col_names = [], []
     with open(filename) as csvfile:
         reader = csv.reader(csvfile)
-        row = reader.next()
+        row = next(reader)
         col_names = row[1:] # X amino acid names
         for line in reader:
-            line = filter(None, line)
+            line = [_f for _f in line if _f]
             row_names.append(line[0]) # Y amino acid names
             data.append(line[1:]) # Half times
     data = np.array(data)
@@ -206,7 +206,7 @@ def calc_deam(mid, to_print = True):
         for protein in mid[sample]:
             asn_m, asn_t, gln_m, gln_t = 0, 0, 0, 0
             rel_asn, rel_gln = -1, -1
-            for label, val in mid[sample][protein].items():
+            for label, val in list(mid[sample][protein].items()):
                 mod, total = val
                 cur_pos, aa = label.split(" ")
                 print_results.append([sample, protein, aa, 1-(mod/total)])
@@ -225,7 +225,7 @@ def calc_deam(mid, to_print = True):
             relative.append([sample, protein, rel_asn, rel_gln])
     if to_print: save_fine_bulk(print_results)
     if to_print: save_csv_results(relative, "Bulk")
-    print "Bulk deamidation calculated"
+    print("Bulk deamidation calculated")
     return relative
 
 
@@ -245,7 +245,7 @@ def ss_wrangle(mid):
     data = []
     for sample in mid:
         for protein in mid[sample]:
-            for label, val in mid[sample][protein].items():
+            for label, val in list(mid[sample][protein].items()):
                 hf = val[0]
                 after = val[1:]
                 mod = [item[0] for item in after]
@@ -298,7 +298,7 @@ def site_spef(mid, show = False, to_print = True):
     data_to_print = []
 
     single_sample = False
-    if len(mid.keys()) == 1:
+    if len(list(mid.keys())) == 1:
         single_sample = True
 
     for line in data:
@@ -335,7 +335,7 @@ def save_fine_bulk(data):
         writer.writerow(["Sample", "Protein", "AA", "RelNonDeam"])
         writer.writerows(data)
     csvfile.close()
-    print "%s saved in %s" % (title, results_dir)
+    print("%s saved in %s" % (title, results_dir))
 
 
 def save_csv_results(data, method):
@@ -354,7 +354,7 @@ def save_csv_results(data, method):
             writer.writerow(["Sample", "Protein", "NNonDeam", "QNonDeam"])
         writer.writerows(data)
     csvfile.close()
-    print "%s saved in %s" % (title, results_dir)
+    print("%s saved in %s" % (title, results_dir))
 
 
 def read_protein_list(protein_list_file):
@@ -371,7 +371,7 @@ def main():
     try:
         data_folder = sys.argv[1]
     except IndexError as e:
-        print "Specify path to data"
+        print("Specify path to data")
     protein_list = []
     if len(sys.argv) > 2:
         protein_list_file = sys.argv[2]
