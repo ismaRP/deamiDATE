@@ -6,10 +6,11 @@ Given MaxQuant result output (in particular, the `evidence.txt` and `peptides.tx
 Deamidation is calculated per experiment, and per protein in experiment. If any filtering of experiments or proteins is required, it is recommended this is done before running deamiDATE.
 
 *Note: only tested on UNIX*
+*Note 2: this fork version has been migrated to python3*
 
 ## Use:
 
-* You will need Python 2.7
+* You will need Python 3.7
 * You will need to install at least `numpy` and `pandas` (normally done with e.g. `pip install numpy`)
 
 1. Make `run.py` executable, e.g. `chmod +x run.py`
